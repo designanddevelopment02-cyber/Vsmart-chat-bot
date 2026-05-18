@@ -17,7 +17,14 @@ async function startServer() {
   let genAI: GoogleGenAI | null = null;
 
   if (GEMINI_API_KEY) {
-    genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    genAI = new GoogleGenAI({ 
+      apiKey: GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
 
   const VSMART_SYSTEM_INSTRUCTION = `
@@ -53,23 +60,23 @@ You must act as a company-trained expert.
       }
 
       const { message, history, context } = req.body;
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        systemInstruction: VSMART_SYSTEM_INSTRUCTION
-      });
-
+      
       const prompt = context 
         ? `Context from Knowledge Base/History:\n${context}\n\nUser Query: ${message}`
         : message;
 
-      const result = await model.generateContent({
+      const response = await genAI.models.generateContent({ 
+        model: "gemini-3-flash-preview",
+        config: {
+          systemInstruction: VSMART_SYSTEM_INSTRUCTION
+        },
         contents: [
           ...(history || []),
           { role: "user", parts: [{ text: prompt }] }
         ]
       });
 
-      res.json({ text: result.response.text() });
+      res.json({ text: response.text });
     } catch (error) {
       console.error("Gemini API Error:", error);
       res.status(500).json({ error: "Failed to generate AI response" });

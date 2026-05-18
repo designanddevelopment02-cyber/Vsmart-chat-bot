@@ -264,14 +264,18 @@ function ChatView() {
       ]);
       
       let context = "";
-      kbSnap.forEach(doc => {
-        const d = doc.data() as KnowledgeArticle;
-        context += `Article Topic: ${d.title}\nContent: ${d.content.slice(0, 1000)}\n\n`;
-      });
-      histSnap.forEach(doc => {
-        const d = doc.data() as QueryRecord;
-        context += `Historical Question: ${d.question}\nVerified Solution: ${d.solution}\n\n`;
-      });
+      if (kbSnap) {
+        kbSnap.forEach(doc => {
+          const d = doc.data() as KnowledgeArticle;
+          context += `Article Topic: ${d.title}\nContent: ${d.content.slice(0, 1000)}\n\n`;
+        });
+      }
+      if (histSnap) {
+        histSnap.forEach(doc => {
+          const d = doc.data() as QueryRecord;
+          context += `Historical Question: ${d.question}\nVerified Solution: ${d.solution}\n\n`;
+        });
+      }
 
       // 2. Get Gemini response
       const historyForGemini = messages.map(m => ({

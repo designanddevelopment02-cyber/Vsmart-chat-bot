@@ -106,7 +106,7 @@ function Sidebar({ activeTab, setActiveTab }: { activeTab: string, setActiveTab:
   const isStaff = profile?.role === 'admin' || profile?.role === 'staff';
 
   return (
-    <div className="h-full bg-white border-r border-slate-200 flex flex-col pt-6">
+    <div className="h-full bg-white flex flex-col pt-6">
       <div className="px-6 mb-8">
         <button 
           onClick={() => setActiveTab('chat')}
@@ -875,27 +875,14 @@ function MainLayout() {
   const { profile } = useAuth();
 
   return (
-    <div className="flex h-screen w-full bg-white overflow-hidden font-sans selection:bg-blue-100 selection:text-blue-900 border-none outline-none">
-      {/* Drawer Overlay */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60]"
-          />
-        )}
-      </AnimatePresence>
-
-      <div className="flex flex-col flex-1 relative">
+    <div className="flex h-screen w-full bg-slate-900 overflow-hidden font-sans selection:bg-blue-100 selection:text-blue-900 border-none outline-none">
+      <div className="flex flex-col flex-1 relative overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-6 bg-slate-900 text-white shrink-0 border-b border-slate-700 z-50">
+        <header className="h-16 flex items-center justify-between px-6 bg-slate-900 text-white shrink-0 border-b border-slate-800 z-50">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setSidebarOpen(true)}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+              className="md:hidden p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
             >
               <Menu size={20} />
             </button>
@@ -910,7 +897,7 @@ function MainLayout() {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-3 border-l border-slate-700 pl-6">
+            <div className="hidden sm:flex items-center gap-3 border-l border-slate-800 pl-6">
               <div className="text-right">
                 <p className="text-xs font-bold text-white leading-tight">{profile?.displayName || 'User'}</p>
                 <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-medium">{profile?.role || 'Guest'}</p>
@@ -922,27 +909,41 @@ function MainLayout() {
           </div>
         </header>
 
-        {/* Sidebar (Drawer) */}
-        <aside className={cn(
-          "fixed inset-y-0 left-0 z-[70] w-72 transition-transform duration-300 transform bg-white shadow-2xl",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <div className="flex flex-col h-full">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <span className="text-xs font-black uppercase tracking-widest text-slate-900">System Menu</span>
-              <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-900">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <Sidebar activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSidebarOpen(false); }} />
-            </div>
-          </div>
-        </aside>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar Overlay (Mobile Only) */}
+          <AnimatePresence>
+            {sidebarOpen && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSidebarOpen(false)}
+                className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[60] md:hidden"
+              />
+            )}
+          </AnimatePresence>
 
-        {/* Main Content Area */}
-        <main className="flex-1 h-full overflow-hidden relative bg-slate-50">
-           <div className="h-full w-full bg-white overflow-hidden">
+          {/* Sidebar - Persistent on Desktop, Drawer on Mobile */}
+          <aside className={cn(
+            "fixed inset-y-0 left-0 z-[70] w-72 bg-white transition-transform duration-300 transform md:relative md:translate-x-0 md:z-10",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          )}>
+            <div className="flex flex-col h-full">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center md:hidden">
+                <span className="text-xs font-black uppercase tracking-widest text-slate-900">System Menu</span>
+                <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-900">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <Sidebar activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSidebarOpen(false); }} />
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1 h-full overflow-hidden relative bg-slate-900 md:p-2 md:pt-0">
+             <div className="h-full w-full bg-white md:rounded-tl-[3rem] overflow-hidden shadow-2xl">
               <AnimatePresence mode="wait">
                 {activeTab === 'chat' && (
                   <motion.div 
@@ -991,6 +992,7 @@ function MainLayout() {
               </AnimatePresence>
             </div>
           </main>
+        </div>
       </div>
     </div>
   );

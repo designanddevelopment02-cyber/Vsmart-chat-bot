@@ -2,5 +2,5 @@
   "name": "Vsmart AI Support Assistant",
   "description": "Official technical support and query resolution engine for Vsmart Thermotech Pvt Ltd.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

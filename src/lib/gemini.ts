@@ -1,8 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
-const API_KEY = process.env.GEMINI_API_KEY;
+let aiInstance: GoogleGenAI | null = null;
 
-export const ai = new GoogleGenAI({ apiKey: API_KEY });
+function getAI() {
+  if (!aiInstance) {
+    const API_KEY = process.env.GEMINI_API_KEY;
+    if (!API_KEY) {
+      throw new Error("GEMINI_API_KEY is not defined. Please ensure it is set in your environment variables via Settings > Secrets.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey: API_KEY });
+  }
+  return aiInstance;
+}
 
 // System prompt for the Vsmart Support Assistant
 export const VSMART_SYSTEM_INSTRUCTION = `
@@ -33,6 +42,7 @@ You must act as a company-trained expert.
 
 export async function getChatResponse(message: string, history: any[] = [], context: string = "") {
   try {
+    const ai = getAI();
     const prompt = context 
       ? `Context from Knowledge Base/History:\n${context}\n\nUser Query: ${message}`
       : message;

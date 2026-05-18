@@ -259,8 +259,8 @@ function ChatView() {
       const histQuery = query(collection(db, 'queries'), limit(10));
       
       const [kbSnap, histSnap] = await Promise.all([
-        getDocs(kbQuery).catch(e => handleFirestoreError(e, OperationType.LIST, 'knowledge_base')),
-        getDocs(histQuery).catch(e => handleFirestoreError(e, OperationType.LIST, 'queries'))
+        getDocs(kbQuery),
+        getDocs(histQuery)
       ]);
       
       let context = "";
@@ -882,7 +882,7 @@ function MainLayout() {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
             >
               <Menu size={20} />
             </button>
@@ -910,7 +910,7 @@ function MainLayout() {
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar Overlay (Mobile Only) */}
+          {/* Sidebar Overlay */}
           <AnimatePresence>
             {sidebarOpen && (
               <motion.div 
@@ -918,18 +918,18 @@ function MainLayout() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSidebarOpen(false)}
-                className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[60] md:hidden"
+                className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[60]"
               />
             )}
           </AnimatePresence>
 
-          {/* Sidebar - Persistent on Desktop, Drawer on Mobile */}
+          {/* Sidebar (Drawer) */}
           <aside className={cn(
-            "fixed inset-y-0 left-0 z-[70] w-72 bg-white transition-transform duration-300 transform md:relative md:translate-x-0 md:z-10",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+            "fixed inset-y-0 left-0 z-[70] w-72 bg-white transition-transform duration-300 transform",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}>
             <div className="flex flex-col h-full">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center md:hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                 <span className="text-xs font-black uppercase tracking-widest text-slate-900">System Menu</span>
                 <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-slate-900">
                   <X size={20} />

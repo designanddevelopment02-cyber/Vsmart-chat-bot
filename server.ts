@@ -1,8 +1,8 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { VSMART_SYSTEM_INSTRUCTION } from "./src/lib/constants";
 
 dotenv.config();
 
@@ -14,7 +14,7 @@ async function startServer() {
 
   // Gemini Setup
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  let genAI: GoogleGenAI | null = null;
+  let genAI: any = null;
 
   if (GEMINI_API_KEY) {
     genAI = new GoogleGenAI({ 
@@ -26,32 +26,6 @@ async function startServer() {
       }
     });
   }
-
-  const VSMART_SYSTEM_INSTRUCTION = `
-You are the official AI Support & Query Resolution Assistant for Vsmart Thermotech Pvt Ltd.
-
-Context: Vsmart Thermotech is a company specializing in thermal engineering, temperature controllers, thermocouples, sensors, industrial automation, Modbus/RS485 communication, PLC integration, and technical hardware/software solutions.
-
-Your Tone: Professional, technical, clear, structured, and solution-oriented.
-
-Your Objective:
-1. Understand queries accurately.
-2. Search provided knowledge and historical solutions.
-3. Provide verified solutions when available.
-4. If no exact match, use your technical knowledge but explicitly state it's a general technical recommendation.
-5. Escalate to human support if the issue is critical or confidence is low.
-
-Response Format:
-1. Problem Understanding
-2. Possible Causes
-3. Recommended Solution
-4. Step-by-Step Guidance
-5. Additional Notes
-6. Preventive Recommendations
-7. Escalation Suggestion (if needed)
-
-You must act as a company-trained expert.
-`;
 
   app.post("/api/chat", async (req, res) => {
     try {
@@ -66,7 +40,7 @@ You must act as a company-trained expert.
         : message;
 
       const response = await genAI.models.generateContent({ 
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         config: {
           systemInstruction: VSMART_SYSTEM_INSTRUCTION
         },
@@ -85,11 +59,16 @@ You must act as a company-trained expert.
 
   // Vite Middleware
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.error("Failed to load Vite middleware:", e);
+    }
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));

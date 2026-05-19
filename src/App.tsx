@@ -19,10 +19,9 @@ import {
 } from 'lucide-react';
 import { useAuth, AuthProvider } from './lib/AuthContext';
 import { signIn, logOut, db } from './lib/firebase';
-import { getChatResponse } from './lib/gemini';
 import { cn, handleFirestoreError, OperationType } from './lib/utils';
-import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, onSnapshot, where, updateDoc, doc } from 'firebase/firestore';
-import { Message, QueryRecord, KnowledgeArticle } from './types';
+import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, onSnapshot, where, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { Message, QueryRecord, KnowledgeArticle, ChatSession } from './types';
 import Markdown from 'react-markdown';
 
 // --- Components ---
@@ -101,22 +100,46 @@ function ChatBubble({ message }: { message: Message }) {
   );
 }
 
-function Sidebar({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: string) => void }) {
-  const { profile } = useAuth();
+function Sidebar({ activeTab, setActiveTab, currentChatId, setCurrentChatId }: { 
+  activeTab: string, 
+  setActiveTab: (t: string) => void,
+  currentChatId: string | null,
+  setCurrentChatId: (id: string | null) => void
+}) {
+  const { profile, user } = useAuth();
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const isStaff = profile?.role === 'admin' || profile?.role === 'staff';
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'chats'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setSessions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatSession)));
+    }, (e) => handleFirestoreError(e, OperationType.LIST, 'chats'));
+    return unsubscribe;
+  }, [user]);
 
   return (
     <div className="h-full bg-white flex flex-col pt-6">
       <div className="px-6 mb-8">
         <button 
-          onClick={() => setActiveTab('chat')}
-          className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-all shadow-sm"
+          onClick={() => {
+            setCurrentChatId(null);
+            setActiveTab('chat');
+          }}
+          className="w-full py-2.5 bg-slate-900 border border-slate-900 text-amber-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2"
         >
-          + New Technical Query
+          <Plus size={16} />
+          New Diagnostic Thread
         </button>
       </div>
       
-      <nav className="flex-1 px-4 space-y-8 overflow-y-auto">
+      <nav className="flex-1 px-4 space-y-6 overflow-y-auto">
         <div>
           <h3 className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-4">Core Navigation</h3>
           <ul className="space-y-1">
@@ -127,7 +150,12 @@ function Sidebar({ activeTab, setActiveTab }: { activeTab: string, setActiveTab:
             ].map((item) => (
               <li key={item.id}>
                 <button
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (item.id === 'chat' && sessions.length > 0 && !currentChatId) {
+                       // Don't auto-select to allow "New Thread" behavior
+                    }
+                  }}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
                     activeTab === item.id 
@@ -143,17 +171,55 @@ function Sidebar({ activeTab, setActiveTab }: { activeTab: string, setActiveTab:
           </ul>
         </div>
 
+        <div>
+          <h3 className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-4">Recent Threads</h3>
+          <div className="space-y-1">
+            {sessions.length === 0 ? (
+              <p className="px-2 text-[10px] font-medium text-slate-400 italic">No recent queries.</p>
+            ) : (
+              sessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => {
+                    setCurrentChatId(session.id || null);
+                    setActiveTab('chat');
+                  }}
+                  className={cn(
+                    "w-full flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl text-xs transition-all group",
+                    currentChatId === session.id && activeTab === 'chat'
+                      ? "bg-slate-100 border border-slate-200"
+                      : "hover:bg-slate-50 border border-transparent"
+                  )}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <MessageSquare size={14} className={currentChatId === session.id ? "text-blue-600" : "text-slate-400"} />
+                    <span className={cn(
+                      "truncate font-bold tracking-tight",
+                      currentChatId === session.id ? "text-slate-900" : "text-slate-600 group-hover:text-slate-900"
+                    )}>
+                      {session.lastMessage || 'Blank Enquiry thread'}
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-slate-400 ml-5">
+                    {session.createdAt?.toDate ? session.createdAt.toDate().toLocaleDateString('en-IN') : 'Just now'}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
         {isStaff && (
           <div>
             <h3 className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-4">Admin Controls</h3>
             <button
               onClick={() => setActiveTab('manage')}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                activeTab === 'manage' ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-slate-50"
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
+                activeTab === 'manage' ? "bg-slate-800 text-white shadow-lg shadow-slate-300" : "text-slate-600 hover:bg-slate-50"
               )}
             >
-              <Settings size={18} />
+              <Settings size={18} className={activeTab === 'manage' ? "text-white" : "text-slate-400 group-hover:text-slate-600"} />
               System Management
             </button>
           </div>
@@ -199,32 +265,32 @@ function Sidebar({ activeTab, setActiveTab }: { activeTab: string, setActiveTab:
 
 // --- Main Application Pages ---
 
-function ChatView() {
+function ChatView({ chatId, setChatId }: { chatId: string | null, setChatId: (id: string) => void }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chatId, setChatId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initialize chat session
+  // Initialize or Load chat session
   useEffect(() => {
     if (!user) return;
-    const initChat = async () => {
-      try {
-        const docRef = await addDoc(collection(db, 'chats'), {
-          userId: user.uid,
-          status: 'active',
-          createdAt: serverTimestamp(),
-          lastMessage: ''
-        });
-        setChatId(docRef.id);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, 'chats');
-      }
-    };
-    initChat();
-  }, [user]);
+    
+    if (chatId) {
+      // Load existing messages
+      const q = query(
+        collection(db, 'chats', chatId, 'messages'),
+        orderBy('timestamp', 'asc')
+      );
+      const unsubscribe = onSnapshot(q, (snap) => {
+        setMessages(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)));
+      });
+      return unsubscribe;
+    } else {
+      // No chatId, we start with empty messages and will create on first send
+      setMessages([]);
+    }
+  }, [user, chatId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -233,7 +299,26 @@ function ChatView() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading || !chatId || !user) return;
+    if (!input.trim() || isLoading || !user) return;
+
+    let activeChatId = chatId;
+    
+    // Create new chat session if none active
+    if (!activeChatId) {
+      try {
+        const docRef = await addDoc(collection(db, 'chats'), {
+          userId: user.uid,
+          status: 'active',
+          createdAt: serverTimestamp(),
+          lastMessage: input.slice(0, 100)
+        });
+        activeChatId = docRef.id;
+        setChatId(activeChatId);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, 'chats');
+        return;
+      }
+    }
 
     const userMessageText = input;
     const userMessage: Message = {
@@ -248,15 +333,15 @@ function ChatView() {
 
     try {
       // Persist user message
-      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      await addDoc(collection(db, 'chats', activeChatId, 'messages'), {
         role: 'user',
         text: userMessageText,
         timestamp: serverTimestamp()
-      }).catch(e => handleFirestoreError(e, OperationType.WRITE, `chats/${chatId}/messages`));
+      }).catch(e => handleFirestoreError(e, OperationType.WRITE, `chats/${activeChatId}/messages`));
 
       // 1. Search Knowledge Base and History for context
-      const kbQuery = query(collection(db, 'knowledge_base'), limit(10));
-      const histQuery = query(collection(db, 'queries'), limit(10));
+      const kbQuery = query(collection(db, 'knowledge_base'), limit(5));
+      const histQuery = query(collection(db, 'queries'), limit(5));
       
       const [kbSnap, histSnap] = await Promise.all([
         getDocs(kbQuery),
@@ -267,7 +352,7 @@ function ChatView() {
       if (kbSnap) {
         kbSnap.forEach(doc => {
           const d = doc.data() as KnowledgeArticle;
-          context += `Article Topic: ${d.title}\nContent: ${d.content.slice(0, 1000)}\n\n`;
+          context += `Article Topic: ${d.title}\nContent: ${d.content.slice(0, 800)}\n\n`;
         });
       }
       if (histSnap) {
@@ -277,13 +362,29 @@ function ChatView() {
         });
       }
 
-      // 2. Get Gemini response
-      const historyForGemini = messages.map(m => ({
-        role: m.role === 'user' ? 'user' as const : 'model' as const,
+      // 2. Get Chat response (Server-side proxy handles the API key)
+      const chatHistory = messages.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]
       }));
 
-      const aiResponseText = await getChatResponse(userMessageText, historyForGemini, context);
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessageText,
+          history: chatHistory,
+          context: context
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch AI response');
+      }
+
+      const data = await response.json();
+      const aiResponseText = data.text;
 
       const aiMessage: Message = {
         role: 'assistant',
@@ -294,23 +395,23 @@ function ChatView() {
       setMessages(prev => [...prev, aiMessage]);
 
       // Persist assistant message
-      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      await addDoc(collection(db, 'chats', activeChatId, 'messages'), {
         role: 'assistant',
         text: aiResponseText,
         timestamp: serverTimestamp()
-      }).catch(e => handleFirestoreError(e, OperationType.WRITE, `chats/${chatId}/messages`));
+      }).catch(e => handleFirestoreError(e, OperationType.WRITE, `chats/${activeChatId}/messages`));
 
       // Update chat session last message
-      await updateDoc(doc(db, 'chats', chatId), {
-        lastMessage: userMessageText.slice(0, 100),
+      await updateDoc(doc(db, 'chats', activeChatId), {
+        lastMessage: userMessageText.slice(0, 50), // shorter for sidebar
         updatedAt: serverTimestamp()
-      }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `chats/${chatId}`));
+      }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `chats/${activeChatId}`));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
       const errorMessage: Message = {
         role: 'assistant',
-        text: "System Error: Diagnostic line interrupted. Interaction logged for engineering review.",
+        text: `System Error: ${error.message || "Diagnostic line interrupted. Interaction logged."}`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -876,6 +977,7 @@ function ManagementView() {
 function MainLayout() {
   const [activeTab, setActiveTab] = useState('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const { profile } = useAuth();
 
   return (
@@ -940,7 +1042,15 @@ function MainLayout() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto">
-                <Sidebar activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSidebarOpen(false); }} />
+                <Sidebar 
+                  activeTab={activeTab} 
+                  setActiveTab={(tab) => { setActiveTab(tab); setSidebarOpen(false); }} 
+                  currentChatId={currentChatId}
+                  setCurrentChatId={(id) => {
+                    setCurrentChatId(id);
+                    setSidebarOpen(false);
+                  }}
+                />
               </div>
             </div>
           </aside>
@@ -957,7 +1067,7 @@ function MainLayout() {
                     exit={{ opacity: 0 }}
                     className="h-full"
                   >
-                    <ChatView />
+                    <ChatView chatId={currentChatId} setChatId={setCurrentChatId} />
                   </motion.div>
                 )}
                 {activeTab === 'history' && (
